@@ -104,21 +104,29 @@ public class Lexic {
             }
             
             if (!isAceptacion) {
-                i = inicioLexema + 1;
+                //i = inicioLexema + 1;
                 yytext = sigma.substring(inicioLexema, inicioLexema + 1);
                 token = SimbolosEspeciales.ERROR;
+                indiceCaracterActual = inicioLexema + 1;
                 //token = ultimoEstadoAceptado.getToken();
                 //i = ultimaPosAceptada;
                 return token;
-            } /*else {*/
+            } else {
                 // Se detectó error, avanzar 1 posición para continuar analizando
-                yytext = String.valueOf(sigma.charAt(i));
+                token = ultimoEstadoAceptado.getToken();
+                //yytext = String.valueOf(sigma.charAt(i));
+                yytext = sigma.substring(inicioLexema, ultimaPosAceptada);
+                indiceCaracterActual = ultimaPosAceptada; // AVANZAR EL INDICE
+                /*
                 i++;
                 token = SimbolosEspeciales.ERROR;
-            //}
+                */
+            }
             // Extraer lexema y ajustar el índice
+            /*
             yytext = sigma.substring(inicioLexema, finLexema + 1);
             indiceCaracterActual = finLexema + 1;
+            */
             
             // Verificar si se omite el token, en cuyo caso se continúa
             if (token == SimbolosEspeciales.OMITIR) {
@@ -155,6 +163,7 @@ public class Lexic {
         return this.yytext;
     }
 
+    /*
     public void analizarCadena(String cadena) {
         SetSigma(cadena);
         int tkn;
@@ -163,6 +172,34 @@ public class Lexic {
             // Puedes imprimir o guardar los tokens aquí también si lo deseas
         } while (tkn != SimbolosEspeciales.FIN && indiceCaracterActual < cadena.length());
     }
+*/
+    public List<Simbolo> analizarCadena(String cadena) {
+    SetSigma(cadena);
+    List<Simbolo> simbolos = new ArrayList<>();
+    int tkn;
+    do {
+        tkn = yylex();
+        if (tkn != SimbolosEspeciales.OMITIR && tkn != SimbolosEspeciales.FIN) {
+            simbolos.add(new Simbolo(
+                yytext, 
+                tkn, 
+                1,  // línea (ajusta según necesites)
+                1,  // columna (ajusta según necesites)
+                obtenerTipoToken(tkn)  // Método que clasifica el token
+            ));
+        }
+    } while (tkn != SimbolosEspeciales.FIN && indiceCaracterActual < cadena.length());
+    
+    return simbolos;
+}
+
+private String obtenerTipoToken(int token) {
+    // Implementa lógica para clasificar tokens
+    if (token >= 10 && token < 20) return "Identificador";
+    if (token >= 20 && token < 30) return "Número";
+    // ... etc
+    return "Token";
+}
     
     // Método para clonar el estado actual del analizador léxico
     public Lexic getEdoAnalizLexico() {

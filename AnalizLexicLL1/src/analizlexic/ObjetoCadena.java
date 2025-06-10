@@ -19,11 +19,11 @@ public class ObjetoCadena {
 		this.s = cadena;
 	}
 	
-	public String getS() {
+	public String getCadena() {
 		return s;
 	}
 	
-	public void setS(String cadena) {
+	public void setCadena(String cadena) {
 		this.s = cadena;
 	}
 }

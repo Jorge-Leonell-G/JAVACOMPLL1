@@ -266,15 +266,30 @@ public class frmAnalisisLL1 extends javax.swing.JFrame {
         }
 
         try {
-            analizador = new Lexic(sigma, archivoRuta);
+            AnalizLexico lexico = new AnalizLexico(sigma, archivoRuta);
+            List<Simbolo> simbolos = lexico.obtenerSimbolos();
+
+            tableModel.setRowCount(0); 
+
+            if (simbolos.isEmpty()) {
+                JOptionPane.showMessageDialog(null, "No se encontraron símbolos en la cadena.");
+                return;
+            }
+
+            for (Simbolo s : simbolos) {
+                tableModel.addRow(new Object[]{s.getLexema(), s.getToken()});
+            }
+            /*
+            //analizador = new Lexic(sigma, archivoRuta);
+            AnalizLexico lexico = new AnalizLexico(sigma, archivoRuta);
             tableModel.setRowCount(0);
 
             int token;
-            while ((token = analizador.yylex()) != 0) {
-                String lexema = analizador.yytext();
+            while ((token = lexico.yylex()) != 0) {
+                String lexema = anali.yytext();
                 tableModel.addRow(new Object[]{lexema, token});
             }
-
+            */
             JOptionPane.showMessageDialog(this, "Análisis léxico completado exitosamente.",
                     "Éxito", JOptionPane.INFORMATION_MESSAGE);
 
@@ -285,36 +300,45 @@ public class frmAnalisisLL1 extends javax.swing.JFrame {
     }
 
     private void analizarGramaticaButtonActionPerformed(java.awt.event.ActionEvent evt) {
-        String gramatica = textArea.getText()
-            .replaceAll("\\s+", " ")
-            .replaceAll("\\s*->\\s*", " -> ")
-            .replaceAll("\\s*\\|\\s*", " | ")
-            .replaceAll("\\s*;\\s*", ";\n")
-            .trim();
+    String gramatica = textArea.getText()
+        .replaceAll("[ ]{2,}", " ") // conserva saltos de línea, elimina solo espacios repetidos
+        .replaceAll("\\s*->\\s*", " -> ")
+        .replaceAll("\\s*\\|\\s*", " | ")
+        .replaceAll("\\s*;\\s*", ";\n")
+        .trim();
 
-        g = new DescRecGram(gramatica, "C:\\Users\\leone\\Documents\\AFD_GRAMATICA");
-
-        if (g.AnalizarGramatica()) {
-            JOptionPane.showMessageDialog(this, "Gramática analizada correctamente.",
-                "Éxito", JOptionPane.INFORMATION_MESSAGE);
-
-            terminalTableModel.setRowCount(0);
-            noTerminalTableModel.setRowCount(0);
-
-            for (String terminal : g.Vt) {
-                if (!terminal.equals("Epsilon")) {
-                    terminalTableModel.addRow(new Object[]{terminal, ""});
-                }
-            }
-
-            for (String noTerminal : g.Vn) {
-                noTerminalTableModel.addRow(new Object[]{noTerminal});
-            }
-        } else {
-            JOptionPane.showMessageDialog(this, "La gramática es incorrecta.",
-                "Error", JOptionPane.ERROR_MESSAGE);
-        }
+    if (gramatica.isEmpty()) {
+        JOptionPane.showMessageDialog(this, "Ingresa una gramática válida.");
+        return;
     }
+
+    System.out.println("GRAMÁTICA ENVIADA:\n" + gramatica);
+
+    g = new DescRecGram(gramatica, "C:\\Users\\leone\\Documents\\LEXLL1");
+
+    if (g.AnalizarGramatica()) {
+        JOptionPane.showMessageDialog(this, "Gramática analizada correctamente.",
+            "Éxito", JOptionPane.INFORMATION_MESSAGE);
+
+        terminalTableModel.setRowCount(0);
+        noTerminalTableModel.setRowCount(0);
+
+        for (String terminal : g.Vt) {
+            if (!terminal.equals("Epsilon")) {
+                terminalTableModel.addRow(new Object[]{terminal, ""});
+            }
+        }
+
+        for (String noTerminal : g.Vn) {
+            noTerminalTableModel.addRow(new Object[]{noTerminal});
+        }
+
+    } else {
+        JOptionPane.showMessageDialog(this, "La gramática es incorrecta.",
+            "Error", JOptionPane.ERROR_MESSAGE);
+    }
+}
+
 
     private void cambiarTokensButtonActionPerformed(java.awt.event.ActionEvent evt) {
         if (t == null) {
