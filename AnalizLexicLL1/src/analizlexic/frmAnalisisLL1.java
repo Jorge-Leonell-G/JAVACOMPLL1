@@ -9,6 +9,8 @@ import analizlexic.Lexic;
 import analizlexic.DescRecGram;
 import analizlexic.SimbolosEspeciales;
 import analizlexic.LL1Tabla;
+import analizlexic.Regla;
+import analizlexic.Nodo;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
 import java.awt.GridLayout;
@@ -37,7 +39,8 @@ public class frmAnalisisLL1 extends javax.swing.JFrame {
     private Lexic analizador;
     private DescRecGram g;
     private LL1Tabla t;
-    private LL1 parser;    
+    private LL1 parser;
+    private LL1TablaDialog popup;
 
     // Componentes de interfaz
     private JLabel jLabel2;
@@ -45,6 +48,9 @@ public class frmAnalisisLL1 extends javax.swing.JFrame {
     private JButton selecArchivoBoton;
     private JTextField sigmaText;
     private JTextField nombreArchivo;
+    private JTable tablaLL1;
+    private JScrollPane scrollTablaLL1;
+
     
     // Componentes de tablas
     private DefaultTableModel tableModel;
@@ -87,6 +93,12 @@ public class frmAnalisisLL1 extends javax.swing.JFrame {
         selecArchivoBoton = new JButton("Seleccionar Archivo AFD");
         sigmaText = new JTextField(15);
         nombreArchivo = new JTextField(20);
+        //inicializacion de tabla LL1
+        tablaLL1 = new JTable();
+        scrollTablaLL1 = new JScrollPane(tablaLL1);
+        scrollTablaLL1.setBounds(20, 300, 700, 250);
+        this.add(scrollTablaLL1);
+
         
         // Configurar action listeners
         selecArchivoBoton.addActionListener(this::selecArchivoBotonActionPerformed);
@@ -136,8 +148,8 @@ public class frmAnalisisLL1 extends javax.swing.JFrame {
     private void initializeButtons() {
         probarLexicoButton = new JButton("Probar Analizador Léxico");
         analizarGramaticaButton = new JButton("Analizar Gramática");
-        cambiarTokensButton = new JButton("Cambiar a Tokens");
-        generarTablaLL1Button = new JButton("Generar Tabla LL(1)");
+        cambiarTokensButton = new JButton("Asignar Tokens");
+        generarTablaLL1Button = new JButton("Generar Tablas");
         
         // Configurar action listeners
         probarLexicoButton.addActionListener(this::probarLexicoButtonActionPerformed);
@@ -212,48 +224,58 @@ public class frmAnalisisLL1 extends javax.swing.JFrame {
     }
 
     private void AnalizarBotonActionPerformed(java.awt.event.ActionEvent evt) {
-        if (t == null || analizador == null) {
-            JOptionPane.showMessageDialog(this, "Primero carga una tabla LL(1) válida y realiza el análisis léxico.",
-                    "Error", JOptionPane.ERROR_MESSAGE);
-            return;
+    String sigma = sigmaText.getText().trim();
+    if (sigma.isEmpty()) {
+        JOptionPane.showMessageDialog(this, "Ingresa una cadena para analizar.",
+            "Error", JOptionPane.ERROR_MESSAGE);
+        return;
+    }
+    
+    if (t == null) {
+        JOptionPane.showMessageDialog(this, "Primero analiza una gramática válida.",
+            "Error", JOptionPane.ERROR_MESSAGE);
+        return;
+    }
+    
+    realizarAnalisisSintactico(sigma);
+}
+    
+    private void realizarAnalisisSintactico(String sigma) {
+    String archivoRuta = nombreArchivo.getText().trim();
+    
+    try {
+        // 1. Análisis léxico
+        analizador = new Lexic(sigma, archivoRuta);
+        List<Simbolo> simbolos = analizador.analizarCadena(sigma);
+        
+        tableModel.setRowCount(0);
+        for (Simbolo s : simbolos) {
+            tableModel.addRow(new Object[]{s.getLexema(), s.getToken()});
         }
 
-        // Reinicializar el analizador léxico
-        String sigma = sigmaText.getText().trim();
-        String archivoRuta = nombreArchivo.getText().trim();
-
-        try {
-            analizador = new Lexic(sigma, archivoRuta);
-        } catch (Exception e) {
-            JOptionPane.showMessageDialog(this, "Error al reiniciar el analizador léxico: " + e.getMessage(),
-                    "Error", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-
-        // Crear el analizador sintáctico LL(1)
+        // 2. Análisis sintáctico LL(1)
         parser = new LL1(t, analizador);
         ll1TableModel.setRowCount(0);
 
-        // Ejecutar análisis sintáctico
         while (!parser.pila.isEmpty()) {
             String pilaEstado = obtenerPilaComoString(parser.pila);
             String cadenaActual = parser.cadenaActual;
             String accion = parser.accion;
 
-            System.out.println("Pila: " + pilaEstado + " | Cadena: " + cadenaActual + " | Acción: " + accion);
             agregarFilaLL1Dinamica(pilaEstado, cadenaActual, accion);
 
             if (!parser.analisisRecursivo()) {
-                JOptionPane.showMessageDialog(this, "Error durante el análisis sintáctico.",
-                        "Error", JOptionPane.ERROR_MESSAGE);
-                return;
+                throw new Exception("Error durante el análisis sintáctico");
             }
         }
 
         agregarFilaLL1Dinamica("", "$", "Aceptar");
-        JOptionPane.showMessageDialog(this, "Análisis sintáctico completado exitosamente.",
-                "Éxito", JOptionPane.INFORMATION_MESSAGE);
+        
+    } catch (Exception e) {
+        JOptionPane.showMessageDialog(this, "Error en el análisis: " + e.getMessage(),
+            "Error", JOptionPane.ERROR_MESSAGE);
     }
+}
 
     private void probarLexicoButtonActionPerformed(java.awt.event.ActionEvent evt) {
         String archivoRuta = nombreArchivo.getText().trim();
@@ -300,8 +322,74 @@ public class frmAnalisisLL1 extends javax.swing.JFrame {
     }
 
     private void analizarGramaticaButtonActionPerformed(java.awt.event.ActionEvent evt) {
+    // 1. Validar y formatear gramática
     String gramatica = textArea.getText()
-        .replaceAll("[ ]{2,}", " ") // conserva saltos de línea, elimina solo espacios repetidos
+        .replaceAll("[ ]{2,}", " ")
+        .replaceAll("\\s*->\\s*", " -> ")
+        .replaceAll("\\s*\\|\\s*", " | ")
+        .replaceAll("\\s*;\\s*", ";\n")
+        .trim();
+    
+    if (gramatica.isEmpty()) {
+        JOptionPane.showMessageDialog(this, "Ingresa una gramática válida.");
+        return;
+    }
+    
+    System.out.println("GRAMÁTICA ENVIADA:\n" + gramatica);
+
+    // 2. Analizar estructura gramatical (sin validación de tokens)
+    try {
+        g = new DescRecGram(gramatica, "C:\\Users\\leone\\Documents\\LEXLL1");
+        
+        // Método modificado que solo valida la estructura, no los tokens
+        if (!g.analizarEstructuraGramatical()) {
+            JOptionPane.showMessageDialog(this, 
+                "La gramática tiene errores estructurales:\n" +
+                "- Formato incorrecto de producciones\n" +
+                "- Símbolos mal formados\n" +
+                "- Otra validación sintáctica",
+                "Error en gramática", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        // 3. Mostrar terminales y no terminales identificados
+        terminalTableModel.setRowCount(0);
+        noTerminalTableModel.setRowCount(0);
+
+        // Mostrar terminales (sin validar tokens aún)
+        for (String terminal : g.Vt) {
+            if (!terminal.equals("Epsilon")) {
+                terminalTableModel.addRow(new Object[]{terminal, ""}); // Token vacío
+            }
+        }
+
+        // Mostrar no terminales
+        for (String noTerminal : g.Vn) {
+            noTerminalTableModel.addRow(new Object[]{noTerminal});
+        }
+
+        // 4. Generar estructura básica de tabla LL(1) (sin conversión a tokens)
+        t = new LL1Tabla(g.NumReglas, g.arrReglas, g.Vn, g.Vt);
+        t.construirEstructuraBasica(); // Método que no requiere tokens
+
+        JOptionPane.showMessageDialog(this, 
+            "Análisis estructural completado:\n" +
+            "- Terminales y no terminales identificados\n" +
+            "- Estructura LL(1) preparada\n\n" +
+            "Asigna tokens a los terminales y luego usa 'Analizar Sintácticamente'",
+            "Análisis exitoso", JOptionPane.INFORMATION_MESSAGE);
+
+    } catch (Exception ex) {
+        JOptionPane.showMessageDialog(this, 
+            "Error al analizar la gramática: " + ex.getMessage(),
+            "Error", JOptionPane.ERROR_MESSAGE);
+    }
+}
+    
+    private void generarTablaLL1ButtonActionPerformed(java.awt.event.ActionEvent evt) {
+    // 1. Validar y formatear gramática
+    String gramatica = textArea.getText()
+        .replaceAll("[ ]{2,}", " ")
         .replaceAll("\\s*->\\s*", " -> ")
         .replaceAll("\\s*\\|\\s*", " | ")
         .replaceAll("\\s*;\\s*", ";\n")
@@ -314,110 +402,175 @@ public class frmAnalisisLL1 extends javax.swing.JFrame {
 
     System.out.println("GRAMÁTICA ENVIADA:\n" + gramatica);
 
-    g = new DescRecGram(gramatica, "C:\\Users\\leone\\Documents\\LEXLL1");
+    // 2. Extraer reglas (sólo analizamos, no llenamos aún los terminales)
+    Set<String> noTerminales = new HashSet<>();
+    List<Regla> reglas = new ArrayList<>();
 
-    if (g.AnalizarGramatica()) {
-        JOptionPane.showMessageDialog(this, "Gramática analizada correctamente.",
-            "Éxito", JOptionPane.INFORMATION_MESSAGE);
+    t = new LL1Tabla();
 
-        terminalTableModel.setRowCount(0);
-        noTerminalTableModel.setRowCount(0);
+    String[] lineas = gramatica.split(";");
+    for (String linea : lineas) {
+        if (linea.trim().isEmpty()) continue;
 
-        for (String terminal : g.Vt) {
-            if (!terminal.equals("Epsilon")) {
-                terminalTableModel.addRow(new Object[]{terminal, ""});
+        String[] partes = linea.split("->");
+        if (partes.length != 2) continue;
+
+        String ladoIzq = partes[0].trim();
+        String[] producciones = partes[1].trim().split("\\|");
+
+        noTerminales.add(ladoIzq);
+
+        for (String prod : producciones) {
+            String[] simbolos = prod.trim().split("\\s+");
+            List<Nodo> listaNodos = new ArrayList<>();
+            for (String simbolo : simbolos) {
+                if (simbolo.isEmpty()) continue;
+                if (simbolo.equals("Epsilon")) simbolo = "ε"; // Normalizar epsilon
+                Nodo nodo = new Nodo(simbolo, !noTerminales.contains(simbolo));
+                listaNodos.add(nodo);
             }
+            reglas.add(new Regla(ladoIzq, listaNodos));
         }
-
-        for (String noTerminal : g.Vn) {
-            noTerminalTableModel.addRow(new Object[]{noTerminal});
-        }
-
-    } else {
-        JOptionPane.showMessageDialog(this, "La gramática es incorrecta.",
-            "Error", JOptionPane.ERROR_MESSAGE);
     }
+
+    // 3. Configurar objeto LL1Tabla
+    t.ReglaA = reglas;
+    t.numReglas = reglas.size();
+    t.Vn = new HashSet<>(noTerminales);
+
+    // Nota: NO construimos Vt manualmente aquí
+
+    // 4. Construir tabla LL(1)
+    t.construirTablaLL1(); // aquí se calcula Vt correctamente
+    Map<String, Map<String, String>> tablaLL1 = t.tablaLL1;
+
+    // 5. Obtener terminales desde la tabla generada
+    Set<String> terminalesSet = new HashSet<>();
+    for (Map<String, String> fila : tablaLL1.values()) {
+        terminalesSet.addAll(fila.keySet());
+    }
+
+    List<String> terminales = new ArrayList<>(terminalesSet);
+    terminales.sort(String::compareTo);
+
+    // 6. Mostrar terminales y no terminales en las tablas de la interfaz
+    terminalTableModel.setRowCount(0);
+    noTerminalTableModel.setRowCount(0);
+
+    for (String terminal : terminales) {
+        terminalTableModel.addRow(new Object[]{terminal, ""});
+    }
+
+    for (String noTerminal : noTerminales) {
+        noTerminalTableModel.addRow(new Object[]{noTerminal});
+    }
+
+    // 7. Mostrar tabla LL(1) visualmente
+    terminales.add(0, "No Terminal");
+    ll1DynamicTableModel.setColumnIdentifiers(terminales.toArray());
+    ll1DynamicTableModel.setRowCount(0);
+
+    for (String noTerminal : tablaLL1.keySet()) {
+        Object[] row = new Object[terminales.size()];
+        row[0] = noTerminal;
+        for (int i = 1; i < terminales.size(); i++) {
+            String terminal = terminales.get(i);
+            String valor = tablaLL1.get(noTerminal).getOrDefault(terminal, "-");
+            row[i] = valor;
+        }
+        ll1DynamicTableModel.addRow(row);
+    }
+
+    // 8. Mostrar mensaje de éxito y abrir ventana emergente
+    JOptionPane.showMessageDialog(this,
+        "Tablas generadas correctamente:\n" +
+        "- Terminales identificados: " + (terminales.size() - 1) + "\n" +
+        "- No terminales identificados: " + noTerminales.size() + "\n" +
+        "Ahora puedes asignar tokens a los terminales.",
+        "Éxito", JOptionPane.INFORMATION_MESSAGE);
+
+    popup = new LL1TablaDialog(this, "Tabla LL(1)", ll1DynamicTableModel);
+    popup.setVisible(true);
 }
 
 
+    
     private void cambiarTokensButtonActionPerformed(java.awt.event.ActionEvent evt) {
-        if (t == null) {
-            JOptionPane.showMessageDialog(this, "Primero genera la tabla LL(1).", "Error", JOptionPane.ERROR_MESSAGE);
+    // Verifica si la tabla emergente está creada y visible
+    if (t == null || popup == null || !popup.isDisplayable()) {
+        JOptionPane.showMessageDialog(this, "Primero genera la tabla LL(1).", "Error", JOptionPane.ERROR_MESSAGE);
+        return;
+    }
+
+    Map<String, Integer> tokensUsuario = new HashMap<>();
+
+    // Lee los tokens ingresados para cada terminal
+    for (int i = 0; i < terminalTableModel.getRowCount(); i++) {
+        String terminal = terminalTableModel.getValueAt(i, 0).toString().trim();
+        Object tokenValue = terminalTableModel.getValueAt(i, 1);
+
+        if (tokenValue == null || tokenValue.toString().trim().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Token vacío para el terminal: " + terminal
+                    + " en la fila " + (i + 1), "Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
 
-        Map<String, Integer> tokensUsuario = new HashMap<>();
-        for (int i = 0; i < terminalTableModel.getRowCount(); i++) {
-            String terminal = terminalTableModel.getValueAt(i, 0).toString().trim();
-            Object tokenValue = terminalTableModel.getValueAt(i, 1);
-
-            if (tokenValue == null || tokenValue.toString().trim().isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Token vacío para el terminal: " + terminal
-                        + " en la fila " + (i + 1), "Error", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-
-            try {
-                int token = Integer.parseInt(tokenValue.toString().trim());
-                tokensUsuario.put(terminal, token);
-            } catch (NumberFormatException ex) {
-                JOptionPane.showMessageDialog(this, "Token inválido para el terminal: " + terminal,
-                        "Error", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-        }
-
-        t.convertirTerminalesATokens(tokensUsuario);
-        t.imprimirTablaLL1();
-        JOptionPane.showMessageDialog(this, "Terminales reemplazados por tokens correctamente.",
-                "Éxito", JOptionPane.INFORMATION_MESSAGE);
-    }
-
-    private void generarTablaLL1ButtonActionPerformed(java.awt.event.ActionEvent evt) {
-        if (g == null) {
-            JOptionPane.showMessageDialog(this, "Primero analiza la gramática.", "Error", JOptionPane.ERROR_MESSAGE);
+        try {
+            int token = Integer.parseInt(tokenValue.toString().trim());
+            tokensUsuario.put(terminal, token);
+        } catch (NumberFormatException ex) {
+            JOptionPane.showMessageDialog(this, "Token inválido para el terminal: " + terminal,
+                    "Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
-
-        t = new LL1Tabla(g.NumReglas, g.arrReglas, g.Vn, g.Vt);
-        t.construirTablaLL1();
-
-        Map<String, Map<String, String>> tablaNumeros = t.convertirTablaLL1ANumerosDeRegla();
-        Set<String> terminales = new HashSet<>();
-        
-        for (Map<String, String> fila : tablaNumeros.values()) {
-            terminales.addAll(fila.keySet());
-        }
-        if (!terminales.contains("$")) {
-            terminales.add("$");
-        }
-
-        List<String> headers = new ArrayList<>(terminales);
-        headers.sort(String::compareTo);
-        headers.add(0, "No Terminal");
-
-        ll1DynamicTableModel.setColumnIdentifiers(headers.toArray());
-        ll1DynamicTableModel.setRowCount(0);
-
-        for (String noTerminal : tablaNumeros.keySet()) {
-            Object[] row = new Object[headers.size()];
-            row[0] = noTerminal;
-            for (int i = 1; i < headers.size(); i++) {
-                row[i] = tablaNumeros.get(noTerminal).getOrDefault(headers.get(i), "-1");
-            }
-            ll1DynamicTableModel.addRow(row);
-        }
-
-        Object[] ultimaFila = new Object[headers.size()];
-        ultimaFila[0] = "$";
-        for (int i = 1; i < headers.size(); i++) {
-            ultimaFila[i] = headers.get(i).equals("$") ? "Aceptar" : "-1";
-        }
-        ll1DynamicTableModel.addRow(ultimaFila);
-
-        JOptionPane.showMessageDialog(this, "Tabla LL(1) generada correctamente.",
-                "Éxito", JOptionPane.INFORMATION_MESSAGE);
     }
+
+    // Llama a la clase TablaLL1 (o como se llame tu clase de ventana) para reemplazar
+    t.convertirTerminalesATokens(tokensUsuario);
+    t.imprimirTablaLL1(); // Opcional: imprime en consola para depuración
+
+    JOptionPane.showMessageDialog(this, "Terminales reemplazados por tokens correctamente.",
+            "Éxito", JOptionPane.INFORMATION_MESSAGE);
+}
+
+    
+    public void mostrarTablaLL1(LL1Tabla tabla) {
+    Map<String, Map<String, String>> datos = tabla.tablaLL1;
+
+    // Obtener terminales únicos
+    Set<String> terminalesSet = new HashSet<>();
+    for (Map<String, String> fila : datos.values()) {
+        terminalesSet.addAll(fila.keySet());
+    }
+
+    List<String> terminales = new ArrayList<>(terminalesSet);
+    terminales.sort(String::compareTo);
+
+    // Encabezados: primero columna NoTerminal
+    String[] columnas = new String[terminales.size() + 1];
+    columnas[0] = "No Terminal";
+    for (int i = 0; i < terminales.size(); i++) {
+        columnas[i + 1] = terminales.get(i);
+    }
+
+    // Filas
+    Object[][] filas = new Object[datos.size()][columnas.length];
+    int filaIdx = 0;
+    for (String noTerminal : datos.keySet()) {
+        filas[filaIdx][0] = noTerminal;
+        Map<String, String> producciones = datos.get(noTerminal);
+        for (int colIdx = 0; colIdx < terminales.size(); colIdx++) {
+            String terminal = terminales.get(colIdx);
+            filas[filaIdx][colIdx + 1] = producciones.getOrDefault(terminal, "");
+        }
+        filaIdx++;
+    }
+
+    // Actualizar la tabla visual
+    DefaultTableModel modelo = new DefaultTableModel(filas, columnas);
+    tablaLL1.setModel(modelo);
+}
+
 
     // Métodos auxiliares
     private void agregarFilaLL1Dinamica(String pila, String cadena, String accion) {

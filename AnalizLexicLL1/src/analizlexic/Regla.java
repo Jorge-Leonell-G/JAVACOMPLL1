@@ -19,8 +19,18 @@ public class Regla {
         this.nameSimbolo = simbolo;
         this.lista = l;
     }
-    
+
     public Regla() {
         this.lista = new ArrayList<>();
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(nameSimbolo).append(" -> ");
+        for (Nodo nodo : lista) {
+            sb.append(nodo.nameSimbolo).append(" ");
+        }
+        return sb.toString().trim();
     }
 }

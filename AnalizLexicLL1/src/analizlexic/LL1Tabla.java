@@ -15,8 +15,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import javax.swing.JFrame;
 
-public class LL1Tabla {
+public class LL1Tabla extends JFrame {
     int numReglas;
     List<Regla> ReglaA = new ArrayList<>();
     public Map<String, Map<String, String>> tablaLL1 = new HashMap<>();
@@ -331,4 +332,38 @@ public class LL1Tabla {
         }
         return sb.toString().trim();
     }
+    
+    private String producirCadena(Regla regla) {
+        StringBuilder produccion = new StringBuilder();
+
+        for (Nodo n : regla.lista) {
+            produccion.append(n.nameSimbolo).append(" ");
+        }
+
+        return produccion.toString().trim();
+    }
+    
+    public void imprimirTabla() {
+    System.out.println("\nTABLA LL(1):");
+    for (String noTerminal : tablaLL1.keySet()) {
+        for (String terminal : tablaLL1.get(noTerminal).keySet()) {
+            String produccion = tablaLL1.get(noTerminal).get(terminal);
+            System.out.println("M[" + noTerminal + ", " + terminal + "] = " + produccion);
+        }
+    }
+}
+    
+    public void construirEstructuraBasica() {
+    // Construye la tabla sin conversión de tokens
+    this.tablaLL1 = new HashMap<>();
+    
+    // Lógica para llenar la tabla con producciones en formato string
+    for (String noTerminal : this.Vn) {
+        Map<String, String> fila = new HashMap<>();
+        // ... lógica de construcción ...
+        this.tablaLL1.put(noTerminal, fila);
+    }
+}
+
+
 }
