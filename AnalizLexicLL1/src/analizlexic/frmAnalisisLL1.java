@@ -24,8 +24,10 @@ import java.io.FileNotFoundException;
 import java.util.logging.Level;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -337,11 +339,10 @@ public class frmAnalisisLL1 extends javax.swing.JFrame {
     
     System.out.println("GRAMÁTICA ENVIADA:\n" + gramatica);
 
-    // 2. Analizar estructura gramatical (sin validación de tokens)
+    // 2. Analizar estructura gramatical
     try {
         g = new DescRecGram(gramatica, "C:\\Users\\leone\\Documents\\LEXLL1");
         
-        // Método modificado que solo valida la estructura, no los tokens
         if (!g.analizarEstructuraGramatical()) {
             JOptionPane.showMessageDialog(this, 
                 "La gramática tiene errores estructurales:\n" +
@@ -352,25 +353,81 @@ public class frmAnalisisLL1 extends javax.swing.JFrame {
             return;
         }
 
-        // 3. Mostrar terminales y no terminales identificados
-        terminalTableModel.setRowCount(0);
-        noTerminalTableModel.setRowCount(0);
+        // 3. Extraer símbolos en orden de aparición
+        List<String> ordenTerminales = new ArrayList<>();
+        List<String> ordenNoTerminales = new ArrayList<>();
+        Set<String> terminalesUnicos = new LinkedHashSet<>();
+        Set<String> noTerminalesUnicos = new LinkedHashSet<>();
 
-        // Mostrar terminales (sin validar tokens aún)
-        for (String terminal : g.Vt) {
-            if (!terminal.equals("Epsilon")) {
-                terminalTableModel.addRow(new Object[]{terminal, ""}); // Token vacío
+        String[] lineas = gramatica.split(";");
+        for (String linea : lineas) {
+            if (linea.trim().isEmpty()) continue;
+
+            String[] partes = linea.split("->");
+            if (partes.length != 2) continue;
+
+            String ladoIzq = partes[0].trim();
+            if (!noTerminalesUnicos.contains(ladoIzq)) {
+                noTerminalesUnicos.add(ladoIzq);
+                ordenNoTerminales.add(ladoIzq);
+            }
+
+            String[] producciones = partes[1].trim().split("\\|");
+            for (String prod : producciones) {
+                String[] simbolos = prod.trim().split("\\s+");
+                for (String simbolo : simbolos) {
+                    if (simbolo.isEmpty() || simbolo.equals("Epsilon") || simbolo.equals("ε")) continue;
+                    
+                    // Es terminal si: es "simb" o está en mayúsculas y no es no terminal
+                    boolean esTerminal = simbolo.equals("simb") || 
+                                       (simbolo.equals(simbolo.toUpperCase()) && !g.Vn.contains(simbolo));
+                    
+                    if (esTerminal && !terminalesUnicos.contains(simbolo)) {
+                        terminalesUnicos.add(simbolo);
+                        ordenTerminales.add(simbolo);
+                    } else if (!esTerminal && !noTerminalesUnicos.contains(simbolo)) {
+                        noTerminalesUnicos.add(simbolo);
+                        ordenNoTerminales.add(simbolo);
+                    }
+                }
             }
         }
 
-        // Mostrar no terminales
-        for (String noTerminal : g.Vn) {
-            noTerminalTableModel.addRow(new Object[]{noTerminal});
+        // Asegurar que PARD y CORD estén incluidos si no lo están
+        if (!terminalesUnicos.contains("PARD")) {
+            terminalesUnicos.add("PARD");
+            ordenTerminales.add("PARD");
+        }
+        if (!terminalesUnicos.contains("CORD")) {
+            terminalesUnicos.add("CORD");
+            ordenTerminales.add("CORD");
         }
 
-        // 4. Generar estructura básica de tabla LL(1) (sin conversión a tokens)
+        // 4. Mostrar terminales y no terminales en orden de aparición
+        terminalTableModel.setRowCount(0);
+        noTerminalTableModel.setRowCount(0);
+
+        // Mostrar terminales (en orden de aparición)
+        for (String terminal : ordenTerminales) {
+            if (!terminal.equals("EPSILON") && !terminal.equals("ε")) {
+                terminalTableModel.addRow(new Object[]{terminal, ""});
+            }
+        }
+        // Añadir símbolo de fin de cadena al final
+        terminalTableModel.addRow(new Object[]{"$", ""});
+
+        // Mostrar no terminales (en orden de aparición)
+        for (String noTerminal : ordenNoTerminales) {
+            if (!noTerminal.equals("EPSILON") && !noTerminal.equals("ε")) {
+                noTerminalTableModel.addRow(new Object[]{noTerminal});
+            }
+        }
+        // Añadir símbolo de fin de cadena al final
+        noTerminalTableModel.addRow(new Object[]{"$"});
+
+        // 5. Generar estructura básica de tabla LL(1)
         t = new LL1Tabla(g.NumReglas, g.arrReglas, g.Vn, g.Vt);
-        t.construirEstructuraBasica(); // Método que no requiere tokens
+        t.construirEstructuraBasica();
 
         JOptionPane.showMessageDialog(this, 
             "Análisis estructural completado:\n" +
@@ -385,8 +442,8 @@ public class frmAnalisisLL1 extends javax.swing.JFrame {
             "Error", JOptionPane.ERROR_MESSAGE);
     }
 }
-    
-    private void generarTablaLL1ButtonActionPerformed(java.awt.event.ActionEvent evt) {
+
+private void generarTablaLL1ButtonActionPerformed(java.awt.event.ActionEvent evt) {
     // 1. Validar y formatear gramática
     String gramatica = textArea.getText()
         .replaceAll("[ ]{2,}", " ")
@@ -402,9 +459,11 @@ public class frmAnalisisLL1 extends javax.swing.JFrame {
 
     System.out.println("GRAMÁTICA ENVIADA:\n" + gramatica);
 
-    // 2. Extraer reglas (sólo analizamos, no llenamos aún los terminales)
-    Set<String> noTerminales = new HashSet<>();
+    // 2. Extraer reglas y símbolos en orden de aparición
+    Set<String> noTerminales = new LinkedHashSet<>();
     List<Regla> reglas = new ArrayList<>();
+    List<String> ordenTerminales = new ArrayList<>();
+    Set<String> terminalesUnicos = new LinkedHashSet<>();
 
     t = new LL1Tabla();
 
@@ -416,76 +475,102 @@ public class frmAnalisisLL1 extends javax.swing.JFrame {
         if (partes.length != 2) continue;
 
         String ladoIzq = partes[0].trim();
-        String[] producciones = partes[1].trim().split("\\|");
-
         noTerminales.add(ladoIzq);
 
+        String[] producciones = partes[1].trim().split("\\|");
         for (String prod : producciones) {
             String[] simbolos = prod.trim().split("\\s+");
             List<Nodo> listaNodos = new ArrayList<>();
             for (String simbolo : simbolos) {
                 if (simbolo.isEmpty()) continue;
-                if (simbolo.equals("Epsilon")) simbolo = "ε"; // Normalizar epsilon
-                Nodo nodo = new Nodo(simbolo, !noTerminales.contains(simbolo));
+                if (simbolo.equals("Epsilon")) simbolo = "ε";
+                
+                // Identificar terminales
+                boolean esTerminal = simbolo.equals("simb") || 
+                                   (simbolo.equals(simbolo.toUpperCase()) && !noTerminales.contains(simbolo));
+                
+                if (esTerminal && !terminalesUnicos.contains(simbolo)) {
+                    terminalesUnicos.add(simbolo);
+                    ordenTerminales.add(simbolo);
+                }
+                
+                Nodo nodo = new Nodo(simbolo, esTerminal);
                 listaNodos.add(nodo);
             }
             reglas.add(new Regla(ladoIzq, listaNodos));
         }
     }
 
+    // Asegurar terminales específicos
+    if (!terminalesUnicos.contains("PARD")) {
+        terminalesUnicos.add("PARD");
+        ordenTerminales.add("PARD");
+    }
+    if (!terminalesUnicos.contains("CORD")) {
+        terminalesUnicos.add("CORD");
+        ordenTerminales.add("CORD");
+    }
+    // Añadir símbolo de fin de cadena
+    terminalesUnicos.add("$");
+    ordenTerminales.add("$");
+
     // 3. Configurar objeto LL1Tabla
     t.ReglaA = reglas;
     t.numReglas = reglas.size();
-    t.Vn = new HashSet<>(noTerminales);
-
-    // Nota: NO construimos Vt manualmente aquí
+    t.Vn = new LinkedHashSet<>(noTerminales);
+    t.Vn.add("$"); // Añadir $ como no terminal
 
     // 4. Construir tabla LL(1)
-    t.construirTablaLL1(); // aquí se calcula Vt correctamente
+    t.construirTablaLL1();
     Map<String, Map<String, String>> tablaLL1 = t.tablaLL1;
 
-    // 5. Obtener terminales desde la tabla generada
-    Set<String> terminalesSet = new HashSet<>();
-    for (Map<String, String> fila : tablaLL1.values()) {
-        terminalesSet.addAll(fila.keySet());
-    }
-
-    List<String> terminales = new ArrayList<>(terminalesSet);
-    terminales.sort(String::compareTo);
-
-    // 6. Mostrar terminales y no terminales en las tablas de la interfaz
+    // 5. Mostrar terminales y no terminales en orden de aparición
     terminalTableModel.setRowCount(0);
     noTerminalTableModel.setRowCount(0);
 
-    for (String terminal : terminales) {
-        terminalTableModel.addRow(new Object[]{terminal, ""});
+    // Mostrar terminales en orden de aparición
+    for (String terminal : ordenTerminales) {
+        if (!terminal.equals("EPSILON") && !terminal.equals("ε")) {
+            terminalTableModel.addRow(new Object[]{terminal, ""});
+        }
     }
 
-    for (String noTerminal : noTerminales) {
-        noTerminalTableModel.addRow(new Object[]{noTerminal});
+    // Mostrar no terminales en orden de aparición
+    List<String> noTerminalesOrdenados = new ArrayList<>(noTerminales);
+    for (String noTerminal : noTerminalesOrdenados) {
+        if (!noTerminal.equals("EPSILON") && !noTerminal.equals("ε")) {
+            noTerminalTableModel.addRow(new Object[]{noTerminal});
+        }
     }
+    noTerminalTableModel.addRow(new Object[]{"$"});
 
-    // 7. Mostrar tabla LL(1) visualmente
-    terminales.add(0, "No Terminal");
-    ll1DynamicTableModel.setColumnIdentifiers(terminales.toArray());
+    // 6. Mostrar tabla LL(1)
+    ordenTerminales.add(0, "No Terminal");
+    ll1DynamicTableModel.setColumnIdentifiers(ordenTerminales.toArray());
     ll1DynamicTableModel.setRowCount(0);
 
-    for (String noTerminal : tablaLL1.keySet()) {
-        Object[] row = new Object[terminales.size()];
+    // Añadir filas para todos los no terminales (incluyendo $)
+    Set<String> todosNoTerminales = new LinkedHashSet<>(noTerminales);
+    todosNoTerminales.add("$");
+    for (String noTerminal : todosNoTerminales) {
+        if (noTerminal.equals("EPSILON") || noTerminal.equals("ε")) continue;
+        
+        Object[] row = new Object[ordenTerminales.size()];
         row[0] = noTerminal;
-        for (int i = 1; i < terminales.size(); i++) {
-            String terminal = terminales.get(i);
-            String valor = tablaLL1.get(noTerminal).getOrDefault(terminal, "-");
+        for (int i = 1; i < ordenTerminales.size(); i++) {
+            String terminal = ordenTerminales.get(i);
+            String valor = tablaLL1.containsKey(noTerminal) ? 
+                         tablaLL1.get(noTerminal).getOrDefault(terminal, "-") : "-";
             row[i] = valor;
         }
         ll1DynamicTableModel.addRow(row);
     }
 
-    // 8. Mostrar mensaje de éxito y abrir ventana emergente
+    // 7. Mostrar mensaje de éxito
     JOptionPane.showMessageDialog(this,
         "Tablas generadas correctamente:\n" +
-        "- Terminales identificados: " + (terminales.size() - 1) + "\n" +
-        "- No terminales identificados: " + noTerminales.size() + "\n" +
+        "- Terminales identificados: " + (ordenTerminales.size() - 2) + "\n" + // -2 por "No Terminal" y $
+        "- No terminales identificados: " + (noTerminales.size() + 1) + "\n" +
         "Ahora puedes asignar tokens a los terminales.",
         "Éxito", JOptionPane.INFORMATION_MESSAGE);
 
