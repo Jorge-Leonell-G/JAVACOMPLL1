@@ -358,6 +358,15 @@ public class frmAnalisisLL1 extends javax.swing.JFrame {
         List<String> ordenNoTerminales = new ArrayList<>();
         Set<String> terminalesUnicos = new LinkedHashSet<>();
         Set<String> noTerminalesUnicos = new LinkedHashSet<>();
+        //Filtrado de terminales para excluir los no terminales
+        List<String> terminalesFiltrados = new ArrayList<>();
+        for (String simbolo : ordenTerminales) {
+            if (!noTerminalesUnicos.contains(simbolo) && 
+                !simbolo.equals("EPSILON") && 
+                !simbolo.equals("ε")) {
+                terminalesFiltrados.add(simbolo);
+            }
+        }
 
         String[] lineas = gramatica.split(";");
         for (String linea : lineas) {
@@ -382,7 +391,7 @@ public class frmAnalisisLL1 extends javax.swing.JFrame {
                     boolean esTerminal = simbolo.equals("simb") || 
                                        (simbolo.equals(simbolo.toUpperCase()) && !g.Vn.contains(simbolo));
                     
-                    if (esTerminal && !terminalesUnicos.contains(simbolo)) {
+                    if (esTerminal && !terminalesUnicos.contains(simbolo) && !g.Vn.contains(simbolo)) {
                         terminalesUnicos.add(simbolo);
                         ordenTerminales.add(simbolo);
                     } else if (!esTerminal && !noTerminalesUnicos.contains(simbolo)) {
@@ -393,25 +402,21 @@ public class frmAnalisisLL1 extends javax.swing.JFrame {
             }
         }
 
-        // Asegurar que PARD y CORD estén incluidos si no lo están
-        if (!terminalesUnicos.contains("PARD")) {
-            terminalesUnicos.add("PARD");
-            ordenTerminales.add("PARD");
+        // Asegurar terminales específicos (solo si no son no terminales)
+        if (!terminalesFiltrados.contains("PARD") && !noTerminalesUnicos.contains("PARD")) {
+            terminalesFiltrados.add("PARD");
         }
-        if (!terminalesUnicos.contains("CORD")) {
-            terminalesUnicos.add("CORD");
-            ordenTerminales.add("CORD");
+        if (!terminalesFiltrados.contains("CORD") && !noTerminalesUnicos.contains("CORD")) {
+            terminalesFiltrados.add("CORD");
         }
 
         // 4. Mostrar terminales y no terminales en orden de aparición
         terminalTableModel.setRowCount(0);
         noTerminalTableModel.setRowCount(0);
 
-        // Mostrar terminales (en orden de aparición)
-        for (String terminal : ordenTerminales) {
-            if (!terminal.equals("EPSILON") && !terminal.equals("ε")) {
-                terminalTableModel.addRow(new Object[]{terminal, ""});
-            }
+        // Mostrar terminales filtrados
+        for (String terminal : terminalesFiltrados) {
+            terminalTableModel.addRow(new Object[]{terminal, ""});
         }
         // Añadir símbolo de fin de cadena al final
         terminalTableModel.addRow(new Object[]{"$", ""});
@@ -500,19 +505,26 @@ private void generarTablaLL1ButtonActionPerformed(java.awt.event.ActionEvent evt
             reglas.add(new Regla(ladoIzq, listaNodos));
         }
     }
+    
+    // Filtrar terminales para excluir no terminales
+    List<String> terminalesFiltrados = new ArrayList<>();
+    for (String simbolo : ordenTerminales) {
+        if (!noTerminales.contains(simbolo) && 
+            !simbolo.equals("EPSILON") && 
+            !simbolo.equals("ε")) {
+            terminalesFiltrados.add(simbolo);
+        }
+    }
 
     // Asegurar terminales específicos
-    if (!terminalesUnicos.contains("PARD")) {
-        terminalesUnicos.add("PARD");
-        ordenTerminales.add("PARD");
+    if (!terminalesFiltrados.contains("PARD") && !noTerminales.contains("PARD")) {
+        terminalesFiltrados.add("PARD");
     }
-    if (!terminalesUnicos.contains("CORD")) {
-        terminalesUnicos.add("CORD");
-        ordenTerminales.add("CORD");
+    if (!terminalesFiltrados.contains("CORD") && !noTerminales.contains("CORD")) {
+        terminalesFiltrados.add("CORD");
     }
     // Añadir símbolo de fin de cadena
-    terminalesUnicos.add("$");
-    ordenTerminales.add("$");
+    terminalesFiltrados.add("$");
 
     // 3. Configurar objeto LL1Tabla
     t.ReglaA = reglas;
@@ -528,13 +540,12 @@ private void generarTablaLL1ButtonActionPerformed(java.awt.event.ActionEvent evt
     terminalTableModel.setRowCount(0);
     noTerminalTableModel.setRowCount(0);
 
-    // Mostrar terminales en orden de aparición
-    for (String terminal : ordenTerminales) {
-        if (!terminal.equals("EPSILON") && !terminal.equals("ε")) {
-            terminalTableModel.addRow(new Object[]{terminal, ""});
-        }
+    // Mostrar terminales filtrados en orden de aparición
+    // Mostrar terminales filtrados
+    for (String terminal : terminalesFiltrados) {
+        terminalTableModel.addRow(new Object[]{terminal, ""});
     }
-
+    
     // Mostrar no terminales en orden de aparición
     List<String> noTerminalesOrdenados = new ArrayList<>(noTerminales);
     for (String noTerminal : noTerminalesOrdenados) {
