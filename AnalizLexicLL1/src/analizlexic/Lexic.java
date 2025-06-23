@@ -58,7 +58,14 @@ public class Lexic {
             pila.push(i);
             if(i >= sigma.length()){
                 yytext = ""; //el lexema se encuentra vacio por desbordamiento
-                return SimbolosEspeciales.FIN;
+                return SimbolosEspeciales.FIN; //token $
+            }
+            
+            // Detección explícita del token '$'
+            if (sigma.charAt(i) == '$') {
+                yytext = "$";
+                indiceCaracterActual = i + 1; // avanza al siguiente carácter
+                return SimbolosEspeciales.FIN; // mismo token para $
             }
             
             if (automataAFD == null || automataAFD.getEstadoInicial() == null) {

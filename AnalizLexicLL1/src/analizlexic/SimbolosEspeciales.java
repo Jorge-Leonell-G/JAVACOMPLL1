@@ -15,7 +15,7 @@ public class SimbolosEspeciales {
 
     // Constantes para control de flujo del análisis
     public static final int ERROR = -1; // Indica que hubo un error al reconocer un símbolo
-    public static final int FIN = 0;    // Marca el final del análisis
+    public static final int FIN = 0;    // Marca el final del análisis (token "$")
 
     // Representación de epsilon (transición vacía) como carácter nulo
     public static final String EPSILON = "\0";

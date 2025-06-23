@@ -69,7 +69,7 @@ public class frmAnalisisLL1 extends javax.swing.JFrame {
     
     // Botones
     private JButton probarLexicoButton;
-    private JButton analizarGramaticaButton;
+    //private JButton analizarGramaticaButton;
     private JButton cambiarTokensButton;
     private JButton generarTablaLL1Button;
     
@@ -149,13 +149,13 @@ public class frmAnalisisLL1 extends javax.swing.JFrame {
 
     private void initializeButtons() {
         probarLexicoButton = new JButton("Probar Analizador Léxico");
-        analizarGramaticaButton = new JButton("Analizar Gramática");
+        //analizarGramaticaButton = new JButton("Analizar Gramática");
         cambiarTokensButton = new JButton("Asignar Tokens");
         generarTablaLL1Button = new JButton("Generar Tablas");
         
         // Configurar action listeners
         probarLexicoButton.addActionListener(this::probarLexicoButtonActionPerformed);
-        analizarGramaticaButton.addActionListener(this::analizarGramaticaButtonActionPerformed);
+        //analizarGramaticaButton.addActionListener(this::analizarGramaticaButtonActionPerformed);
         cambiarTokensButton.addActionListener(this::cambiarTokensButtonActionPerformed);
         generarTablaLL1Button.addActionListener(this::generarTablaLL1ButtonActionPerformed);
     }
@@ -184,7 +184,7 @@ public class frmAnalisisLL1 extends javax.swing.JFrame {
         JPanel grammarPanel = new JPanel(new BorderLayout());
         grammarPanel.add(new JLabel("Gramática LL(1)"), BorderLayout.NORTH);
         grammarPanel.add(new JScrollPane(textArea), BorderLayout.CENTER);
-        grammarPanel.add(analizarGramaticaButton, BorderLayout.SOUTH);
+        //grammarPanel.add(analizarGramaticaButton, BorderLayout.SOUTH);
         
         // Pestaña 3: Tablas
         JPanel tablesPanel = new JPanel(new GridLayout(1, 2));
@@ -242,40 +242,28 @@ public class frmAnalisisLL1 extends javax.swing.JFrame {
     realizarAnalisisSintactico(sigma);
 }
     
-    private void realizarAnalisisSintactico(String sigma) {
-    String archivoRuta = nombreArchivo.getText().trim();
-    
+    private void realizarAnalisisSintactico(String sigma) { // sigma = cadena del usuario ("simb OR simb")
     try {
-        // 1. Análisis léxico
-        analizador = new Lexic(sigma, archivoRuta);
-        List<Simbolo> simbolos = analizador.analizarCadena(sigma);
+        // === Validaciones ===
+        if (t == null) throw new Exception("Primero genera la tabla LL(1)");
+        if (sigma.isEmpty()) throw new Exception("Ingresa una cadena a analizar");
+
+        // === 1. Análisis léxico ===
+        analizador = new Lexic(sigma, "ruta/afd.bin"); // Usa el AFD, NO la gramática
+        List<Simbolo> tokens = analizador.analizarCadena(sigma);
         
-        tableModel.setRowCount(0);
-        for (Simbolo s : simbolos) {
-            tableModel.addRow(new Object[]{s.getLexema(), s.getToken()});
-        }
-
-        // 2. Análisis sintáctico LL(1)
-        parser = new LL1(t, analizador);
-        ll1TableModel.setRowCount(0);
-
-        while (!parser.pila.isEmpty()) {
-            String pilaEstado = obtenerPilaComoString(parser.pila);
-            String cadenaActual = parser.cadenaActual;
-            String accion = parser.accion;
-
-            agregarFilaLL1Dinamica(pilaEstado, cadenaActual, accion);
-
-            if (!parser.analisisRecursivo()) {
-                throw new Exception("Error durante el análisis sintáctico");
+        // Verifica tokens válidos (deben ser terminales: números positivos)
+        for (Simbolo s : tokens) {
+            if (s.getToken() <= 0) { // -1 es para no terminales
+                throw new Exception("Token inválido: '" + s.getLexema() + "'");
             }
         }
 
-        agregarFilaLL1Dinamica("", "$", "Aceptar");
-        
+        // === 2. Análisis sintáctico ===
+        parser = new LL1(t, (Lexic) tokens); // Pasa solo los tokens de la cadena
+        // ... resto del análisis ...
     } catch (Exception e) {
-        JOptionPane.showMessageDialog(this, "Error en el análisis: " + e.getMessage(),
-            "Error", JOptionPane.ERROR_MESSAGE);
+        JOptionPane.showMessageDialog(this, "Error: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
     }
 }
 
@@ -322,7 +310,7 @@ public class frmAnalisisLL1 extends javax.swing.JFrame {
                     "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
-
+/*
     private void analizarGramaticaButtonActionPerformed(java.awt.event.ActionEvent evt) {
     // 1. Validar y formatear gramática
     String gramatica = textArea.getText()
@@ -363,7 +351,7 @@ public class frmAnalisisLL1 extends javax.swing.JFrame {
         for (String simbolo : ordenTerminales) {
             if (!noTerminalesUnicos.contains(simbolo) && 
                 !simbolo.equals("EPSILON") && 
-                !simbolo.equals("ε")) {
+                !simbolo.equals("ε") && !simbolo.equals("$")) {
                 terminalesFiltrados.add(simbolo);
             }
         }
@@ -388,8 +376,8 @@ public class frmAnalisisLL1 extends javax.swing.JFrame {
                     if (simbolo.isEmpty() || simbolo.equals("Epsilon") || simbolo.equals("ε")) continue;
                     
                     // Es terminal si: es "simb" o está en mayúsculas y no es no terminal
-                    boolean esTerminal = simbolo.equals("simb") || 
-                                       (simbolo.equals(simbolo.toUpperCase()) && !g.Vn.contains(simbolo));
+                    boolean esTerminal = simbolo.equals("simb") || simbolo.equals("guion") ||
+                                       (simbolo.equals(simbolo.toUpperCase()) && !g.Vn.contains(simbolo) && !simbolo.equals("$"));
                     
                     if (esTerminal && !terminalesUnicos.contains(simbolo) && !g.Vn.contains(simbolo)) {
                         terminalesUnicos.add(simbolo);
@@ -419,7 +407,7 @@ public class frmAnalisisLL1 extends javax.swing.JFrame {
             terminalTableModel.addRow(new Object[]{terminal, ""});
         }
         // Añadir símbolo de fin de cadena al final
-        terminalTableModel.addRow(new Object[]{"$", ""});
+        //terminalTableModel.addRow(new Object[]{"$", ""});
 
         // Mostrar no terminales (en orden de aparición)
         for (String noTerminal : ordenNoTerminales) {
@@ -427,7 +415,7 @@ public class frmAnalisisLL1 extends javax.swing.JFrame {
                 noTerminalTableModel.addRow(new Object[]{noTerminal});
             }
         }
-        // Añadir símbolo de fin de cadena al final
+        // Añadir símbolo de fin de cadena al final (no terminal)
         noTerminalTableModel.addRow(new Object[]{"$"});
 
         // 5. Generar estructura básica de tabla LL(1)
@@ -447,7 +435,7 @@ public class frmAnalisisLL1 extends javax.swing.JFrame {
             "Error", JOptionPane.ERROR_MESSAGE);
     }
 }
-
+*/
 private void generarTablaLL1ButtonActionPerformed(java.awt.event.ActionEvent evt) {
     // 1. Validar y formatear gramática
     String gramatica = textArea.getText()
@@ -491,7 +479,7 @@ private void generarTablaLL1ButtonActionPerformed(java.awt.event.ActionEvent evt
                 if (simbolo.equals("Epsilon")) simbolo = "ε";
                 
                 // Identificar terminales
-                boolean esTerminal = simbolo.equals("simb") || 
+                boolean esTerminal = simbolo.equals("simb") || simbolo.equals("guion") ||
                                    (simbolo.equals(simbolo.toUpperCase()) && !noTerminales.contains(simbolo));
                 
                 if (esTerminal && !terminalesUnicos.contains(simbolo)) {
@@ -524,7 +512,7 @@ private void generarTablaLL1ButtonActionPerformed(java.awt.event.ActionEvent evt
         terminalesFiltrados.add("CORD");
     }
     // Añadir símbolo de fin de cadena
-    terminalesFiltrados.add("$");
+    //terminalesFiltrados.add("$");
 
     // 3. Configurar objeto LL1Tabla
     t.ReglaA = reglas;
@@ -588,9 +576,7 @@ private void generarTablaLL1ButtonActionPerformed(java.awt.event.ActionEvent evt
     popup = new LL1TablaDialog(this, "Tabla LL(1)", ll1DynamicTableModel);
     popup.setVisible(true);
 }
-
-
-    
+ 
     private void cambiarTokensButtonActionPerformed(java.awt.event.ActionEvent evt) {
     // Verifica si la tabla emergente está creada y visible
     if (t == null || popup == null || !popup.isDisplayable()) {
