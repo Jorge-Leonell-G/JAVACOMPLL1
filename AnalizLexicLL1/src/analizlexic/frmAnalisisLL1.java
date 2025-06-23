@@ -242,28 +242,40 @@ public class frmAnalisisLL1 extends javax.swing.JFrame {
     realizarAnalisisSintactico(sigma);
 }
     
-    private void realizarAnalisisSintactico(String sigma) { // sigma = cadena del usuario ("simb OR simb")
+    private void realizarAnalisisSintactico(String sigma) {
+    String archivoRuta = nombreArchivo.getText().trim();
+    
     try {
-        // === Validaciones ===
-        if (t == null) throw new Exception("Primero genera la tabla LL(1)");
-        if (sigma.isEmpty()) throw new Exception("Ingresa una cadena a analizar");
-
-        // === 1. Análisis léxico ===
-        analizador = new Lexic(sigma, "ruta/afd.bin"); // Usa el AFD, NO la gramática
-        List<Simbolo> tokens = analizador.analizarCadena(sigma);
+        // 1. Análisis léxico
+        analizador = new Lexic(sigma, archivoRuta);
+        List<Simbolo> simbolos = analizador.analizarCadena(sigma);
         
-        // Verifica tokens válidos (deben ser terminales: números positivos)
-        for (Simbolo s : tokens) {
-            if (s.getToken() <= 0) { // -1 es para no terminales
-                throw new Exception("Token inválido: '" + s.getLexema() + "'");
+        tableModel.setRowCount(0);
+        for (Simbolo s : simbolos) {
+            tableModel.addRow(new Object[]{s.getLexema(), s.getToken()});
+        }
+
+        // 2. Análisis sintáctico LL(1)
+        parser = new LL1(t, analizador);
+        ll1TableModel.setRowCount(0);
+
+        while (!parser.pila.isEmpty()) {
+            String pilaEstado = obtenerPilaComoString(parser.pila);
+            String cadenaActual = parser.cadenaActual;
+            String accion = parser.accion;
+
+            agregarFilaLL1Dinamica(pilaEstado, cadenaActual, accion);
+
+            if (!parser.analisisRecursivo()) {
+                throw new Exception("Error durante el análisis sintáctico");
             }
         }
 
-        // === 2. Análisis sintáctico ===
-        parser = new LL1(t, (Lexic) tokens); // Pasa solo los tokens de la cadena
-        // ... resto del análisis ...
+        agregarFilaLL1Dinamica("", "$", "Aceptar");
+        
     } catch (Exception e) {
-        JOptionPane.showMessageDialog(this, "Error: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        JOptionPane.showMessageDialog(this, "Error en el análisis: " + e.getMessage(),
+            "Error", JOptionPane.ERROR_MESSAGE);
     }
 }
 
