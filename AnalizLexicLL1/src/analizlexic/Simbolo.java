@@ -10,14 +10,19 @@ public class Simbolo implements Serializable {
     private final String tipo; // Tipo de símbolo
     private final int linea;  // Línea donde se encuentra el lexema
     private final int columna; // Columna donde se encuentra el lexema
+    
+    // Constructor básico para análisis léxico-sintáctico
+    public Simbolo(String lexema, int token) {
+        this(lexema, token, -1, -1, "TERMINAL"); // Valores por defecto
+    }
 
-    // Constructor con lexema, token, línea y columna, y tipo asignado
+    // Constructor completo
     public Simbolo(String lexema, int token, int linea, int columna, String tipo) {
         this.lexema = lexema;
         this.token = token;
-        this.tipo = tipo;  // Se asigna el tipo cuando se crea el Simbolo
-        this.linea = linea;  // Asignar el número de línea
-        this.columna = columna;  // Asignar el número de columna
+        this.tipo = tipo;
+        this.linea = linea;
+        this.columna = columna;
     }
 
     public String getLexema() {

@@ -116,13 +116,16 @@ public class frmAnalisisLL1 extends javax.swing.JFrame {
         
         // Área de texto para gramática
         textArea = new JTextArea();
-        textArea.setText("E ->  T Ep;\n"
-                + "Ep ->  OR T Ep | Epsilon;\n"
-                + "T ->  C Tp;\n"
-                + "Tp ->  CONC C Tp | Epsilon;\n"
-                + "C ->  F Cp;\n"
-                + "Cp ->  POS Cp | KLEEN Cp | OPC Cp | Epsilon;\n"
-                + "F ->  PARI E PARD | simb | CORI simb guion simb CORD;");
+        textArea.setText("Gram->ListaReglas;\n"
+                + "ListaReglas->Reglas PC ListaReglasP;\n"
+                + "ListaReglasP->Reglas PC ListaReglasP | Epsilon;\n"
+                + "Reglas->  LadoIzq FLECHA LadosDerechos;\n"
+                + "LadoIzq->SIMBOLO;\n"
+                + "LadosDerechos->LadoDerecho LadosDerechosP;\n"
+                + "LadosDerechosP->OR LadoDerecho LadosDerechosP | Epsilon;\n"
+                + "LadoDerecho->SecSimbolos;\n"
+                + "SecSimbolos->SIMBOLO SecSimbolosP;\n"
+                + "SecSimbolosP->SIMBOLO SecSimbolosP | Epsilon;\n");
         
         // Tabla LL1
         ll1TableModel = new DefaultTableModel(new String[]{"Pila", "Cadena", "Acción"}, 0);
@@ -246,35 +249,48 @@ public class frmAnalisisLL1 extends javax.swing.JFrame {
     String archivoRuta = nombreArchivo.getText().trim();
     
     try {
-        // 1. Análisis léxico
+        // 1. Análisis léxico obligatorio
         analizador = new Lexic(sigma, archivoRuta);
         List<Simbolo> simbolos = analizador.analizarCadena(sigma);
         
+        //verificacion de los tokens obtenidos
+        System.out.println("Tokens obtenidos del análisis léxico:");
+        for (Simbolo s : simbolos) {
+            System.out.println("Lexema: " + s.getLexema() + " - Token: " + s.getToken());
+        }
+        
+        // Mostrar resultados léxicos
         tableModel.setRowCount(0);
         for (Simbolo s : simbolos) {
             tableModel.addRow(new Object[]{s.getLexema(), s.getToken()});
         }
 
-        // 2. Análisis sintáctico LL(1)
-        parser = new LL1(t, analizador);
+        // 2. Verificar tabla LL1
+        if (t == null) {
+            throw new Exception("Primero genera la tabla LL(1)");
+        }
+
+        // 3. Análisis sintáctico con los símbolos léxicos
+        parser = new LL1(t, simbolos); // Pasar la lista de símbolos directamente
         ll1TableModel.setRowCount(0);
 
+        // Ejecutar análisis paso a paso
         while (!parser.pila.isEmpty()) {
             String pilaEstado = obtenerPilaComoString(parser.pila);
-            String cadenaActual = parser.cadenaActual;
+            String lexemaActual = parser.simboloActual.getLexema();
             String accion = parser.accion;
 
-            agregarFilaLL1Dinamica(pilaEstado, cadenaActual, accion);
+            agregarFilaLL1Dinamica(pilaEstado, lexemaActual, accion);
 
             if (!parser.analisisRecursivo()) {
-                throw new Exception("Error durante el análisis sintáctico");
+                throw new Exception("Error sintáctico en: " + lexemaActual);
             }
         }
 
         agregarFilaLL1Dinamica("", "$", "Aceptar");
         
     } catch (Exception e) {
-        JOptionPane.showMessageDialog(this, "Error en el análisis: " + e.getMessage(),
+        JOptionPane.showMessageDialog(this, "Error en el análisis:\n" + e.getMessage(),
             "Error", JOptionPane.ERROR_MESSAGE);
     }
 }
@@ -516,13 +532,6 @@ private void generarTablaLL1ButtonActionPerformed(java.awt.event.ActionEvent evt
         }
     }
 
-    // Asegurar terminales específicos
-    if (!terminalesFiltrados.contains("PARD") && !noTerminales.contains("PARD")) {
-        terminalesFiltrados.add("PARD");
-    }
-    if (!terminalesFiltrados.contains("CORD") && !noTerminales.contains("CORD")) {
-        terminalesFiltrados.add("CORD");
-    }
     // Añadir símbolo de fin de cadena
     //terminalesFiltrados.add("$");
 

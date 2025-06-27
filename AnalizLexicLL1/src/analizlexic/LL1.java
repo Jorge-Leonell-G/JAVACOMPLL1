@@ -1,115 +1,156 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
 package analizlexic;
 
+import java.util.Collections;
 import java.util.Stack;
 import java.util.Map;
+import java.util.List;
 
-/**
- *
- * @author leone
- */
 public class LL1 {
     
-    public LL1Tabla tabla;
-    public Stack<String> pila; //Pila para el analisis por descenso recursivo
-    public Lexic lexer; //Analizador lexico
-    public int tokenActual; //Token actual determinado por el lexer
-    public String lexemaActual;
-    public String accion; //Accion a ejecutar durante el descenso
+    public final LL1Tabla tabla;
+    public final Stack<String> pila;
+    public String accion;
     public String cadenaActual;
     
-    public LL1 (LL1Tabla tab, Lexic lex) {
-        this.tabla = tab;
-        this.pila = new Stack();
-        this.lexer = lex;
-        this.accion = "";
-        this.cadenaActual = lexer.sigma + "$";
-        
-        this.pila.push("0"); //inicializamos la pila con el simbolo inicial y el fin de cadena
-        this.pila.push(tab.ReglaA.get(0).nameSimbolo); //simbolo inicial de la gramatica G
-        
-        //obtencion del primer token del lexer mediante yylex
-        this.tokenActual = lexer.yylex();
-        if(tokenActual == 0){
-            System.out.println("Error: Primer token no encontrado. Por favor verifique el analizador lexico");
+    private final List<Simbolo> simbolos;
+    private int currentSymbolIndex;
+    Simbolo simboloActual;
+    
+    public LL1(LL1Tabla tabla, List<Simbolo> simbolosLexicos) {
+        if (tabla == null || simbolosLexicos == null) {
+            throw new IllegalArgumentException("Tabla y símbolos no pueden ser nulos");
         }
-        this.lexemaActual = lexer.yytext(); //accedemos al lexema
+        this.tabla = tabla;
+        this.pila = new Stack<>();
+        //this.accion = "";
+        //this.simbolos = simbolosLexicos;
+        this.simbolos = Collections.unmodifiableList(simbolosLexicos);
+        //this.currentSymbolIndex = 0;
         
-        System.out.println("Token inicial: " + tokenActual + ". Lexema: " + lexemaActual);
+        // Inicializar pila
+        this.pila.push("$"); // Fin de cadena
+        this.pila.push(tabla.ReglaA.get(0).nameSimbolo); // Símbolo inicial
+        
+        // Obtener primer símbolo
+        updateCurrentSymbol();
+        
+        // Construir representación de cadena para visualización
+        StringBuilder cadenaStr = new StringBuilder();
+        for (Simbolo s : simbolos) {
+            cadenaStr.append(s.getLexema()).append(" ");
+        }
+        this.cadenaActual = cadenaStr.toString().trim() + " $";
+        
+        System.out.println("Token inicial: " + simboloActual.getToken() + 
+                         ". Lexema: " + simboloActual.getLexema());
     }
     
-    /*----- METODO PRINCIPAL PARA REALIZAR EL ANALISIS SINTACTICO POR DESCENSO RECURSIVO -----*/
-    public boolean analisisRecursivo(){
-        System.out.println("Lista de tokens:");
-        //bucles forEach anidados para el descenso a traves de reglas y sus respectivos nodos 
-        for(Regla r : tabla.ReglaA){
-            for(Nodo n : r.lista){
-                System.out.println("Token de " + n.nameSimbolo + ": " + n.token);
-            }
+    private void updateCurrentSymbol() {
+        if (currentSymbolIndex < simbolos.size()) {
+            simboloActual = simbolos.get(currentSymbolIndex);
+        } else {
+            // Crear símbolo de fin de cadena
+            simboloActual = new Simbolo("$", SimbolosEspeciales.FIN);
         }
-        System.out.println("Contenido de la pila\tToken actual\tLexema\tAcción");
-        cadenaActual = lexer.sigma + "$"; //Recordamos que la pila inicia con $
+    }
+    
+    public boolean analisisRecursivo() {
+        System.out.println("\nIniciando análisis sintáctico LL(1)...");
+        System.out.println("Cadena a analizar: " + cadenaActual);
         
-        while (!pila.isEmpty()){
-            String top = pila.peek(); //simbolo en la cima de la pila
-            accion = ""; //accion de reset
+        while (!pila.isEmpty()) {
+            String top = pila.peek();
+            accion = "";
             imprimirEstadoPila(top);
             
-            //verificamos si el tope de la pila es un simbolo terminal, lo que deberia de efectuar un pop en la pila actual
-            if(isTerminal(top)){
-                if(Integer.parseInt(top) == tokenActual) { //Y ademas se verifica que el tope de la pila sea el mismo que el token actual de la cadena ingresada
-                    accion = "pop";
+            if (isTerminal(top)) {
+                if (matchTerminal(top, simboloActual.getToken())) {
+                    accion = "Match '" + simboloActual.getLexema() + "'";
                     System.out.println(accion);
-                    pila.pop(); //sacamos el ultimo elemento de la pila para luego pedir otro token
-                    cadenaActual = cadenaActual.substring(1); //lo mismo que $1 en un LR1
-                    tokenActual = lexer.yylex(); //Aqui pedimos el siguiente token
-                    lexemaActual = lexer.yytext(); //Accedemos al contenido del yylex  
+                    pila.pop();
+                    advanceSymbol();
                 } else {
-                    System.out.println("Error: El token se esperaba que coincidiera:  " + tokenActual + " (" + lexemaActual + ")");
+                    System.err.println("Error sintáctico: Se esperaba " + getExpectedTerminal(top) + 
+                                     " pero se encontró '" + simboloActual.getLexema() + "'");
                     return false;
                 }
-            } else { //El tope es un no terminal, por lo que debemos sustituirlo por los no terminales de la regla asociada a la accion en un orden inverso
-                String regla = getProduccion(top, tokenActual);
-                if(regla == null) { //Si la regla no contiene nada, no hay produccion valida para el tope de la pila
-                    System.out.println("Error: Produccion no válida para el tope de la pila. [" + top + "][" + tokenActual + "]");
+            } else {
+                String produccion = getProduccion(top, simboloActual.getToken());
+                if (produccion == null) {
+                    System.err.println("Error: No hay producción definida para [" + top + 
+                                      "][" + simboloActual.getToken() + "]");
                     return false;
-                } else { //El tope sigue siendo un no terminal, pero si se tiene una regla diferente de nulo
-                    accion = regla + "," + top; //La salida es de tipo "FT',5" como se vio en clase
+                } else {
+                    accion = top + " → " + produccion;
                     System.out.println(accion);
-                    pila.pop(); //Se hace un pop para luego realizar una insercion de los simbolos de la produccion en la pila, en un orden de derecha a izquierda
-                    
-                    String[] simbolos = regla.split(" ");
-                    for(int i = simbolos.length -1; i >= 0; i--){ //recorrido inverso (decremental)
-                        if(!simbolos[i].equals("Epsilon")){ //Si el simbolo es un epsilon, evidentemente no se agrega nada a la pila
-                            pila.push(simbolos[i]);
-                        }
+                    pila.pop();
+                    pushProductionToStack(produccion);
+                }
+            }
+        }
+        
+        if (simboloActual.getToken() == SimbolosEspeciales.FIN) {
+            accion = "Aceptar";
+            System.out.println(accion);
+            return true;
+        }
+        
+        System.err.println("Error: Cadena no completamente analizada");
+        return false;
+    }
+    
+    private boolean matchTerminal(String stackTop, int inputToken) {
+        try {
+            int stackToken = Integer.parseInt(stackTop);
+            return stackToken == inputToken;
+        } catch (NumberFormatException e) {
+            return stackTop.equals("$") && inputToken == SimbolosEspeciales.FIN;
+        }
+    }
+    
+    private String getExpectedTerminal(String stackTop) {
+        try {
+            int token = Integer.parseInt(stackTop);
+            // Buscar el nombre del token en la tabla
+            for (Regla r : tabla.ReglaA) {
+                for (Nodo n : r.lista) {
+                    if (n.token == token) {
+                        return n.nameSimbolo;
                     }
                 }
             }
+            return "token " + token;
+        } catch (NumberFormatException e) {
+            return stackTop.equals("$") ? "fin de cadena ($)" : stackTop;
         }
-        
-        //Finalmente, verificamos que la pila se encuentre vacia y que el token actual sea de tipo $ con $ (Aceptacion)
-        if(pila.isEmpty() && tokenActual == SimbolosEspeciales.FIN){
-            accion = "Accept";
-            System.out.println(accion);
-            imprimirEstadoPila(""); //Pila vacia
-            return true;
+    }
+    
+    private void pushProductionToStack(String production) {
+        String[] simbolos = production.split(" ");
+        for (int i = simbolos.length - 1; i >= 0; i--) {
+            if (!simbolos[i].equals("Epsilon")) {
+                pila.push(simbolos[i]);
+            }
         }
-        return false;
+    }
+    
+    private void advanceSymbol() {
+        currentSymbolIndex++;
+        updateCurrentSymbol();
     }
     
     private void imprimirEstadoPila(String tope) {
         String pilaEstado = pila.toString().replace("[", "").replace("]", "").replace(", ", " ");
-        System.out.println(pilaEstado + "\t" + tokenActual + "\t" + lexemaActual + "\t" + accion);
+        System.out.println(pilaEstado + "\t" + simboloActual.getLexema() + "\t" + accion);
     }
     
     private boolean isTerminal(String simb) {
-        // Un terminal se representa como un número entero (token)
+        return simb.equals("$") || isNumeric(simb);
+    }
+    
+    private boolean isNumeric(String str) {
         try {
-            Integer.parseInt(simb);
+            Integer.parseInt(str);
             return true;
         } catch (NumberFormatException e) {
             return false;
@@ -117,17 +158,14 @@ public class LL1 {
     }
 
     private String getProduccion(String noTerminal, int terminal) {
-        //Se convierte el token terminal a una cadena reconocible por el programa
         String tokenCadena = String.valueOf(terminal);
         
-        //Busqueda en la tabla LL1
-        if (tabla.tablaLL1.containsKey(noTerminal)){
+        if (tabla.tablaLL1.containsKey(noTerminal)) {
             Map<String, String> prods = tabla.tablaLL1.get(noTerminal);
-            if(prods.containsKey(tokenCadena)){
+            if (prods.containsKey(tokenCadena)) {
                 return prods.get(tokenCadena);
             }
         }
-        return null; //Es decir, no existe la produccion
+        return null;
     }
-    
 }
